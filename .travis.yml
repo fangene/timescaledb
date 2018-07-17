@@ -54,7 +54,10 @@ jobs:
       before_script:
         - git clone --progress --verbose https://$USR:$PASSWORD@bitbucket.org/440-labs/tsdb-dev-tools.git /tmp/tsdb-dev-tools
       script:
-        - python $TRAVIS_BUILD_DIR/scripts/test_memory_spikes.py &; cd /tmp/tsdb-dev-tools/; psql -U postgres -d postgres -h localhost -v ECHO=all -X -f sql/out_of_order_random_direct.sql
+        - python $TRAVIS_BUILD_DIR/scripts/test_memory_spikes.py & 
+        - cd /tmp/tsdb-dev-tools/
+        - psql -U postgres -d postgres -h localhost -v ECHO=all -X -f sql/out_of_order_random_direct.sql
+        - kill $(jobs -p)
 
     - stage: test
       env:
