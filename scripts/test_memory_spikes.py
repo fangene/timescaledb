@@ -4,7 +4,7 @@ import psutil
 import time
 import sys
 
-MEMORY_CAP = 300 * 1024 * 1024 # absolute memory cap
+MEMORY_CAP = 100 * 1024 * 1024 # absolute memory cap
 THRESHOLD_RATIO = 1.5 # ratio above which considered memory spike
 
 # finds processes with name as argument
