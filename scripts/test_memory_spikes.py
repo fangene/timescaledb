@@ -1,4 +1,4 @@
-# Python script to check if there are memory spikes when running out of 
+# Python script to check if there are memory spikes when running out of
 # order random inserts to TimescaleDB database
 import psutil
 import time
@@ -9,11 +9,10 @@ THRESHOLD_RATIO = 1.5 # ratio above which considered memory spike
 
 # finds processes with name as argument
 def find_procs_by_name(name):
-    "Return a list of processes matching 'name'."
+    # Return a list of processes matching 'name'
     ls = []
-    for p in psutil.process_iter(attrs=['name']):
-    	# print p
-        if p.info['name'] == name:
+    for p in psutil.process_iter():
+    	if p.name() == name:
             ls.append(p)
     return ls
 
@@ -39,51 +38,60 @@ def print_pid(process):
 	if not process:
 		return
 	for p in process:
-		print p.pid,
-	print
+		print(p.pid, end=" ")
+	print()
 	return
 
 # return process id of new postgres process created when running SQL file
 def find_new_process():
 	# get postgres processes that are running before insertion starts
 	base_process = find_procs_by_name('postgres')
-	print 'Processes running before inserts run: '
+	print('Processes running before inserts run: ')
 	print_pid(base_process)
 
 	process_count = len(base_process)
 
-	time.sleep(10) # wait 10 seconds to get process that runs the inserts
+	print("Waiting 30 seconds for process running inserts to start")
+	time.sleep(30) # wait 30 seconds to get process that runs the inserts
 
 	# continuously check for creation of new postgres process
 	timeout = time.time() + 60
 	while True:
 		# prevent infinite loop
 		if time.time() > timeout:
-			print 'Timed out on finding new process, should force quit SQL inserts'
+			print('Timed out on finding new process, should force quit SQL inserts')
 			sys.exit(4)
+
 		process = find_procs_by_name('postgres')
 		cnt = len(process)
+		print("process count ", cnt)
 		if cnt > process_count:
 			process = find_procs_by_name('postgres')
-			new_process = (set(process) - set(base_process)).pop()
-			return new_process.pid
+			difference_set = set(process) - set(base_process)
+			# *** Assumption: only additional process is the running out of order inserts ***
+			if len(difference_set) == 1:
+				new_process = (difference_set).pop()
+				print('new_process: ', new_process)
+				return new_process.pid
 		time.sleep(1)
 
 def main():
 	# get process created from running insert test sql file
 	pid = find_new_process()
 	p = psutil.Process(pid)
-	print 'New process running random inserts: ', pid
+	print('*** Check this pid is the same as "pg_backend_pid" from SQL command ***')
+	print('New process running random inserts:', pid)
 
-	print 'Waiting 1 minute for memory consumption to stabilize'
-	time.sleep(60) # wait 1 minute for memory consumption to stabilize
+	print('Waiting 1 minute for memory consumption to stabilize')
+	time.sleep(60)
 
+	# Calculate average memory consumption from 5 values over 15 seconds
 	sum = 0
 	for i in range (0, 5):
 		sum += p.memory_info().rss
 		time.sleep(3)
 	avg = sum / 5
-	print 'Average memory consumption: ', bytes2human(avg)
+	print('Average memory consumption: ', bytes2human(avg))
 
 	upper_threshold = min(MEMORY_CAP, avg * THRESHOLD_RATIO)
 
@@ -95,22 +103,24 @@ def main():
 			break
 		# prevent infinite loop
 		if time.time() > timeout:
-			print 'Timed out on running inserts'
+			print('Timed out on running inserts (over 30 mins)')
+			print('Killing postgres process')
 			p.kill()
 			sys.exit(4)
 
 		rss = p.memory_info().rss
-		print 'Memory used by process ' + str(p.pid) + ': ' + bytes2human(rss)
+		print('Memory used by process ' + str(p.pid) + ': ' + bytes2human(rss))
 
 		# exit with error if memory above threshold
 		if rss > upper_threshold:
-			print 'Memory consumption exceeded upper threshold'
+			print('Memory consumption exceeded upper threshold')
+			print('Killing postgres process')
 			p.kill()
 			sys.exit(4)
 
 		time.sleep(30)
 
-	print 'No memory errors detected with out of order random inserts'
+	print('No memory errors detected with out of order random inserts')
 	sys.exit(0) # success
 
 if __name__ == '__main__':
