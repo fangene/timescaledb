@@ -77,7 +77,7 @@ echo "Installing python3 and psutil"
 docker exec -u root -it timescaledb-memory /bin/bash -c "apk add --no-cache python3 && python3 -m ensurepip && pip3 install --upgrade pip && apk add --update build-base python3-dev py-psutil"
 
 echo "Copying necessary from host to docker container"
-docker cp test_memory_spikes.py timescaledb-memory:/test_memory_spikes.py
+docker cp ${SCRIPT_DIR}/test_memory_spikes.py timescaledb-memory:/test_memory_spikes.py
 docker cp -a /tmp/tsdb-dev-tools timescaledb-memory:/tmp/tsdb-dev-tools
 
 docker_exec timescaledb-memory "python3 test_memory_spikes.py & cd /tmp/tsdb-dev-tools/ && sleep 5 && psql -U postgres -d postgres -h localhost -v ECHO=all -X -f sql/out_of_order_random_direct.sql"
